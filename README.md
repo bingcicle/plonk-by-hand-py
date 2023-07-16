@@ -10,7 +10,12 @@ Currently only the prover is implemented (up to Part 2).
 
 Tests are written for both part 1 and part 2 and try to test calculations where I think it makes sense.
 
-
 ```sh
 python3 -m unittest discover
+```
+
+To test only the prover:
+
+```sh
+python3 -m unittest -k test_prover 
 ```
