@@ -308,9 +308,6 @@ class Prover:
                 num = a_1 * b_1 * c_1
                 denom = a_1_dem * b_1_dem * c_1_dem
 
-                # while num % denom.value != 0:
-                #    num += 17
-
                 if acc_value == 0:
                     acc_value = num / denom
                 else:
