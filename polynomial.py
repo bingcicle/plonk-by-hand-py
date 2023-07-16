@@ -3,6 +3,11 @@ from field import Field17
 
 
 class Polynomial:
+    """A naive implementation of polynomials in coefficient form.
+
+    The i-th term is the coefficient of the i-th power, eg.
+    f(x) = 2x^2 + 4x + 1 will be represented as [1, 4, 2].
+    """
     coefficients = []
 
     def __init__(self, coefficients):

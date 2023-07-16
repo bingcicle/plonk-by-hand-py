@@ -16,6 +16,7 @@ n = 4
 
 
 def preprocess_input():
+    """Simulates input preprocessing, returning all selector polynomials."""
     roots_of_unity = expand_root_of_unity()
     gate_1 = Gate(0, 0, -1, 1, 0)  # a1 * b1 = c1
     gate_2 = Gate(0, 0, -1, 1, 0)  # a2 * b2 = c2
@@ -39,7 +40,6 @@ def preprocess_input():
 
 class Selector(Enum):
     """Selector wires for a PLONK gate."""
-
     L = 0
     R = 1
     O = 2
@@ -48,7 +48,9 @@ class Selector(Enum):
 
 
 class Gate:
-    """Returns a representation of a full PLONK gate:
+    """Returns a representation of a full PLONK gate.
+
+    The representation is as such:
     q_L * a + q_R + b + q_O * c + q_M * a * b + q_C = 0
     """
 
@@ -62,15 +64,13 @@ class Gate:
 
 
 def collect_selector_vector(gates, selector):
-    vector = []
-    for gate in gates:
-        vector.append(gate.wires[selector])
-
-    return vector
+    """Collects the wires for a list of gates given a selector."""
+    return [gate.wires[selector] for gate in gates]
 
 
 def expand_root_of_unity(omega=4, modulus=17):
-    """Given a root of unity (omega) and a modulo value of a chosen base field,
+    """
+    Given a root of unity (omega) and a modulo value of a chosen base field,
     calculate and return the roots of unity. Following the blog post,
     we use base field F_17 and choose omega = 4.
     """
@@ -88,15 +88,8 @@ def evaluate_coset(roots_of_unity, constant, modulus=17):
     return [(root * constant) % modulus for root in roots_of_unity]
 
 
-def invert(matrix):
-    new_matrix = [[] for _ in range(len(matrix))]
-    for i in range(len(matrix)):
-        for j in range(len(matrix)):
-            matrix[i][j]
-            new_matrix[i].append(1)
-
-
 def make_copy_constraints():
+    """Connect variables between gates by creating copy constraints (encoded as polynomials)."""
     roots_of_unity = expand_root_of_unity()
     H = roots_of_unity
     K1H = evaluate_coset(roots_of_unity, k1)
@@ -113,9 +106,7 @@ def make_copy_constraints():
 
 class Verifier:
     def __init__(self):
-        """In the actual protocol, these should be randomly generated, but
-        in the blog these are simulated by die rolls.
-        """
+        """Inits a verifier with mock randomness simulated by dice rolls."""
         self.alpha = 15
         self.beta = 12
         self.gamma = 13
@@ -134,16 +125,17 @@ class Prover:
         pass
 
     def simulate_trusted_setup(self):
-        """A mock trusted setup that returns a structured reference string,
-        which is a list of elliptic curve points calculated from a randomly
-        generated secret number s.
+        """A mock trusted setup that returns a structured reference string.
 
+        For our use case, this is a list of elliptic curve points
+        calculated from our "secret" s.
         """
         self.s = 2
         self.srs = StructuredReferenceString(self.s)
 
     def eval_at_secret(self, vector):
-        """Compute elliptic curve points which represent
+        """
+        Evaluate elliptic curve points which represent
         polynomials evaluated at the "secret" s.
         """
         cheat_table = [
@@ -165,12 +157,10 @@ class Prover:
             G1(1, 99),
         ]
 
-        """
-        For each point, what we want to do is split up the doubles, i.e.
-        13G = 8G + 4G + 1G.
-        Then based on the index i, power it by the same number as the coefficients, mod the prime.
-        eg. for 8G, if G is (68, 74), it's in the 2nd spot so double of 2 = 4.
-        """
+        # For each point, what we want to do is split up the doubles, i.e.
+        # 13G = 8G + 4G + 1G.
+        # Then based on the index i, power it by the same number as the coefficients, mod the prime.
+        # eg. for 8G, if G is (68, 74), it's in the 2nd spot so double of 2 = 4.
         points = []
         for coeff, point in zip(vector, self.srs):
             # +1 to work in terms of mod 17, our chosen field.
@@ -220,9 +210,7 @@ class Prover:
         return cheat_table[(final_point - 1).value]
 
     def encode_wire_polynomials(self):
-        """In round 1, we want to encode our assignment vectors
-        a, b and c for later use.
-        """
+        """Encode assignment vectors a, b and c for later use."""
         print("\n(Round 1) Encoding assignment vectors a, b, c for later use")
         # Generate random b_1, ... b6 from our base field (F17).
         # We pretend we rolled the die like in the blog to get:
@@ -264,7 +252,7 @@ class Prover:
         return (a_x, b_x, c_x, a_x_evaluated, b_x_evaluated, c_x_evaluated)
 
     def compute_permutation_poly(self, copy_constraints):
-        """Commit to a single polynomial z that encodes all of the copy constraints earlier."""
+        """Commit to a single polynomial z that encodes all of the copy constraints."""
         print("(Round 2) Commit to z that encodes all copy constraints")
         s_sigma1, s_sigma2, s_sigma3 = copy_constraints
 
@@ -420,6 +408,7 @@ class Prover:
     def compute_linearization_polynomial(
         self, challenges, opening_evaluations, z_x, preprocessed_input, pi_x
     ):
+        """Compute linearization polynomial r(x)."""
         (
             a_hat,
             b_hat,
@@ -489,6 +478,7 @@ class Prover:
         r_x,
         r_hat,
     ):
+        """Compute opening proofs."""
         (
             a_hat,
             b_hat,

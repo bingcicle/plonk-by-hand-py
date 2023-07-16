@@ -2,7 +2,8 @@ from field import Field101
 
 
 def generate_g1_subgroup():
-    p = G1(1, 2)  # G1
+    """Generate subgroup given by (1,2) found in Part 1."""
+    p = G1(1, 2)
     subgroup = [G1(1, 2), p.double()]
 
     # base field 17 - 1 - 2 elements = 14

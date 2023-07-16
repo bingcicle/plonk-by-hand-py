@@ -2,14 +2,16 @@ from curve import G1, G2
 
 
 class StructuredReferenceString:
-    """Represents a list of elliptic curve points parameterized
+    """
+    Represents a list of elliptic curve points parameterized
     by a randomly generated secret number s.
     """
 
     values = []
 
     def __init__(self, s):
-        """Inits an SRS with 9 (n + 5) elements (since our chosen gate will
+        """
+        Inits an SRS with 9 (n + 5) elements (since our chosen gate will
         have 4 (n) gates), using randomly chosen powers of s to construct
         this reference string.
 
