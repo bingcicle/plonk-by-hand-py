@@ -451,7 +451,7 @@ class Prover:
                     * s_sigma3
                 )
             )
-            + ((pow(alpha, 2) * L1_zeta) * z_x)  # corright
+            + ((pow(alpha, 2) * L1_zeta) * z_x)
         )
 
         r_hat = r_x.eval(zeta)
