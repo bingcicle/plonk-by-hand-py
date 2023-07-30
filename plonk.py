@@ -2,6 +2,7 @@ from enum import Enum
 from field import Field17
 from polynomial import Polynomial, interpolate_poly_degree_3
 from curve import G1
+from table import Table
 from srs import StructuredReferenceString
 
 # We use elliptic curve: y^2 = x^3 + 3
@@ -40,6 +41,7 @@ def preprocess_input():
 
 class Selector(Enum):
     """Selector wires for a PLONK gate."""
+
     L = 0
     R = 1
     O = 2
@@ -104,27 +106,52 @@ def make_copy_constraints():
     return s_sigma1, s_sigma2, s_sigma3
 
 
-class Verifier:
+class Proof:
+    def __init__(
+        self,
+        a,
+        b,
+        c,
+        z,
+        t_lo,
+        t_mid,
+        t_hi,
+        w_zeta,
+        w_zeta_omega,
+        a_evaluated,
+        b_evaluated,
+        c_evaluated,
+        s_sigma1_evaluated,
+        s_sigma2_evaluated,
+        r_evaluated,
+        z_omega_evaluated,
+    ):
+        self.a = a
+        self.b = b
+        self.c=c
+        self.z=z
+        self.t_lo=t_lo
+        self.t_mid=t_mid
+        self.t_hi=t_hi
+        self.w_zeta=w_zeta
+        self.w_zeta_omega=w_zeta_omega
+        self.a_evaluated=a_evaluated
+        self.b_evaluated=b_evaluated
+        self.c_evaluated=c_evaluated
+        self.s_sigma1_evaluated=s_sigma1_evaluated
+        self.s_sigma2_evaluated=s_sigma2_evaluated
+        self.r_evaluated=r_evaluated
+        self.z_omega_evaluated=z_omega_evaluated
+
+    def __eq__(self, other):
+        for self_var, other_var in zip(vars(self), vars(other)):
+            if self_var != other_var:
+                return False
+
+        return True
+
+class TrustedSetup:
     def __init__(self):
-        """Inits a verifier with mock randomness simulated by dice rolls."""
-        self.alpha = 15
-        self.beta = 12
-        self.gamma = 13
-        self.zeta = 5
-
-    def challenges(self):
-        return self.alpha, self.beta, self.gamma, self.zeta
-
-    def opening_challenge(self):
-        """Returns the v found in Round 5."""
-        return 12
-
-
-class Prover:
-    def __init__(self):
-        pass
-
-    def simulate_trusted_setup(self):
         """A mock trusted setup that returns a structured reference string.
 
         For our use case, this is a list of elliptic curve points
@@ -133,81 +160,15 @@ class Prover:
         self.s = 2
         self.srs = StructuredReferenceString(self.s)
 
+class Prover(Table, TrustedSetup):
+    def __init__(self):
+        Table.__init__(self)
+
+    def simulate_trusted_setup(self):
+        TrustedSetup.__init__(self)
+
     def eval_at_secret(self, vector):
-        """
-        Evaluate elliptic curve points which represent
-        polynomials evaluated at the "secret" s.
-        """
-        cheat_table = [
-            G1(1, 2),
-            G1(68, 74),
-            G1(26, 45),
-            G1(65, 98),
-            G1(12, 32),
-            G1(32, 42),
-            G1(91, 35),
-            G1(18, 49),
-            G1(18, 52),
-            G1(91, 66),
-            G1(32, 59),
-            G1(12, 69),
-            G1(65, 3),
-            G1(26, 56),
-            G1(68, 27),
-            G1(1, 99),
-        ]
-
-        # For each point, what we want to do is split up the doubles, i.e.
-        # 13G = 8G + 4G + 1G.
-        # Then based on the index i, power it by the same number as the coefficients, mod the prime.
-        # eg. for 8G, if G is (68, 74), it's in the 2nd spot so double of 2 = 4.
-        points = []
-        for coeff, point in zip(vector, self.srs):
-            # +1 to work in terms of mod 17, our chosen field.
-            idx = cheat_table.index(point) + 1
-            additions = []
-            doubles = []
-
-            # For each term, count the coefficient for the number of point doublings.
-            while coeff > 1:
-                num_doubles = 0
-                powers_of_two = pow(2, num_doubles + 1)
-                while powers_of_two <= coeff:
-                    num_doubles += 1
-                    powers_of_two = pow(2, num_doubles + 1)
-                doubles.append(num_doubles)
-                coeff -= pow(2, num_doubles)
-
-            # If the coefficient is odd, we will be left with term, so we add it to the
-            # final list to be summed.
-            if coeff == 1:
-                points.append(idx)
-
-            # Once we've expressed this term in terms of doubles, double all together.
-            for num in doubles:
-                doubled = idx
-                while num != 0:
-                    doubled = doubled * 2
-                    num -= 1
-
-                additions.append(doubled)
-
-            while len(additions) != 0:
-                a = additions.pop()
-                if len(additions) > 0:
-                    b = additions.pop()
-                    idx = a + b
-                    additions.append(idx)
-                else:
-                    points.append(Field17(a))
-
-        # All points now have coefficient = 1. Sum all points.
-        final_point = points[0]
-        for point in points[1 : len(points)]:
-            final_point = final_point + point
-
-        # Before we return, we need to subtract by 1 to index the correct term in the 0-15 table.
-        return cheat_table[(final_point - 1).value]
+        return super(Prover, self).eval_at_secret(vector, self.srs)
 
     def encode_wire_polynomials(self):
         """Encode assignment vectors a, b and c for later use."""
@@ -512,3 +473,135 @@ class Prover:
         print(f"[Wzomega(x)] = {w_zeta_omega_x_evaluated}")
 
         return w_zeta_x_evaluated, w_zeta_omega_x_evaluated
+
+    def prove(self):
+        """Computes all points required for the PLONK proof."""
+        self.simulate_trusted_setup()
+        verifier = Verifier()
+        preprocessed_input = preprocess_input()
+        (
+            a_x,
+            b_x,
+            c_x,
+            a_x_evaluated,
+            b_x_evaluated,
+            c_x_evaluated,
+        ) = self.encode_wire_polynomials()
+        copy_constraints = make_copy_constraints()
+
+        z_h = Polynomial([-1, 0, 0, 0, 1])
+
+        # chosen by verifier
+        challenges = verifier.challenges()
+        (_, _, _, zeta) = challenges
+
+        z_x, z_x_evaluated = self.compute_permutation_poly(copy_constraints)
+        t_lo_x, t_mid_x, t_hi_x, t_x = self.compute_quotient_poly(
+            a_x,
+            b_x,
+            c_x,
+            copy_constraints,
+            challenges,
+            preprocessed_input,
+            Polynomial([0]),
+            z_h,
+            z_x,
+        )
+
+        t_lo_evaluated = self.eval_at_secret(t_lo_x)
+        t_mid_evaluated = self.eval_at_secret(t_mid_x)
+        t_hi_evaluated = self.eval_at_secret(t_hi_x)
+
+        pi_x = Polynomial([0])
+
+        # Round 4
+        opening_evaluations = self.compute_opening_evaluations(
+            challenges,
+            a_x,
+            b_x,
+            c_x,
+            z_x,
+        )
+
+        r_x, r_hat = self.compute_linearization_polynomial(
+            challenges, opening_evaluations, z_x, preprocessed_input, pi_x
+        )
+        v = verifier.opening_challenge()
+        (
+            a_hat,
+            b_hat,
+            c_hat,
+            s_sigma1_hat,
+            s_sigma2_hat,
+            z_omega_hat,
+        ) = opening_evaluations
+        w_zeta_x_evaluated, w_zeta_omega_x_evaluated = self.compute_opening_proof(
+            zeta,
+            v,
+            copy_constraints,
+            opening_evaluations,
+            a_x,
+            b_x,
+            c_x,
+            t_x,
+            t_lo_x,
+            t_mid_x,
+            t_hi_x,
+            z_x,
+            r_x,
+            r_hat,
+        )
+
+        proof = Proof(
+            a=a_x_evaluated,
+            b=b_x_evaluated,
+            c=c_x_evaluated,
+            z=z_x_evaluated,
+            t_lo=t_lo_evaluated,
+            t_mid=t_mid_evaluated,
+            t_hi=t_hi_evaluated,
+            w_zeta=w_zeta_x_evaluated,
+            w_zeta_omega=w_zeta_omega_x_evaluated,
+            a_evaluated=a_hat,
+            b_evaluated=b_hat,
+            c_evaluated=c_hat,
+            s_sigma1_evaluated=s_sigma1_hat,
+            s_sigma2_evaluated=s_sigma2_hat,
+            r_evaluated=r_hat,
+            z_omega_evaluated=z_omega_hat,
+        )
+        return proof
+
+
+class Verifier(Table, TrustedSetup):
+    def __init__(self):
+        TrustedSetup.__init__(self)
+        """Inits a verifier with mock randomness simulated by dice rolls."""
+        self.alpha = 15
+        self.beta = 12
+        self.gamma = 13
+        self.zeta = 5
+
+    def preprocess(self, s):
+        """Uses the SRS to evaluate certain polynomials at the secret number s."""
+        pass
+
+    def check_ec_point(self, point):
+        """Given a point, check if it is on the curve E."""
+        pass
+
+    def evaluation_point(self):
+        return 4
+
+    def challenges(self):
+        return self.alpha, self.beta, self.gamma, self.zeta
+
+    def opening_challenge(self):
+        """Returns the v found in Round 5."""
+        return 12
+
+    def eval_at_secret(self, vector):
+        return super(Verifier, self).eval_at_secret(vector, self.srs)
+        
+
+
